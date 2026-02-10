@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Float, Date
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -20,8 +20,8 @@ class TimeEntry(Base):
 	id = Column(Integer, primary_key=True, index=True)
 	user_id = Column(Integer, ForeignKey("users.id"))
 	clock_in = Column(DateTime, nullable=False)
-	clock_out = Column(String, nullable=True)
-	total_hours = Column(String, nullable=True)
-	date = Column(String, nullable=False)
+	clock_out = Column(DateTime, nullable=True)
+	total_hours = Column(Float, nullable=True)
+	date = Column(Date, nullable=False)
 	
 	user = relationship("User", back_populates="time_entries")
