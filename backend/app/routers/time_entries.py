@@ -74,3 +74,27 @@ def clock_out(
         "total_hours": entry.total_hours
     }
 
+
+@router.patch("/edit-entry")
+def admin_time_entry(
+    entry_id: str,
+    update_data: schemas.TimeEntryUpdate,
+    db: Session = Depends(get_db)
+    admin: models.User = Depends(check_admin)):
+
+    entry = db.query(model.TimeEntry).filter(models.TimeEntry.id == entry_id).first
+    if not entry:
+        raise HTTPException(status_code=404, detail="entry not found")
+
+    if update_data.clock_in:
+        entry.clock_in = update_data.clock_in
+    if update_data.clock_out:
+        entry.clock_out = update_data.clock_out
+
+    if entry.clock_out or entry.clock_in:
+        duration = entry.clock_out - entry.clock_in
+        entry.total_hours = round(duration.total_seconds() / 3600, 2)
+
+    db.commit()
+    db.refresh(entry)
+    return entry

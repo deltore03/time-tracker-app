@@ -59,7 +59,7 @@ def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), db:
         )
 
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    to_encode = {"sub": user.username, "exp": expire}
+    to_encode = {"sub": user.username, "exp": expire, "role" : user.role}
     access_token = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
     return {"access_token": access_token, "token_type": "bearer"}
@@ -198,3 +198,18 @@ def weekly_summary(
         "total_hours": round(total, 2),
         "entries": entries
     }
+
+@router.get("/admin/all-;ogs")
+def get_all_logs(
+    db: Session = Depends(check_admin),
+    admin: models.User = Depends("admin")):
+    logs = db.query(models.TimeEntry.all())
+    
+    return logs
+
+@router.get("/admin/edit-entry")
+def edit_entry(
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(check_admin)
+):
+    

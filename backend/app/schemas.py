@@ -15,3 +15,7 @@ class UserOut(BaseModel):
 class Token(BaseModel):
     access_token: str
     token_type: str
+
+class TimeEntryUpdate(BaseModel):
+    clock_in: Optional[datetime] = None
+    clock_out: Optional[datetime] = None
