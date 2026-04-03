@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from app.auth import get_current_user
 
 from jose import jwt
@@ -33,16 +33,21 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
 
     hashed_pw = hash_password(user.password)
     user_role = "employee"
-    if user.admin_key == MASTER_ADMIN_KEY:
-        user_role = "admin"
+    if user.admin_key:  # If they filled in the box...
+        if user.admin_key == MASTER_ADMIN_KEY: # Match your MASTER_ADMIN_KEY
+            user_role = "admin"
+        else:
+            # STOP! Don't create any user. Throw an error instead.
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid Admin Master Key. Account creation aborted."
+            )
 
     new_user = models.User(
         username=user.username,
         password_hash=hashed_pw,
         role = user_role
     )
-
-    
 
     db.add(new_user)
     db.commit()
@@ -77,9 +82,9 @@ def clock_in(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    active_entry = db.query(TimeEntry).filter(
-        TimeEntry.user_id == current_user.id,
-        TimeEntry.clock_out == None
+    active_entry = db.query(models.TimeEntry).filter(
+        models.TimeEntry.user_id == current_user.id,
+        models.TimeEntry.clock_out == None
     ).first()
 
     if active_entry:
@@ -87,10 +92,10 @@ def clock_in(
 
     now = datetime.utcnow()
 
-    entry = TimeEntry(
+    entry = models.TimeEntry(
         user_id=current_user.id,
-        clock_in=now,        # ✅ datetime
-        date=now.date()      # ✅ date
+        clock_in=now,        # datetime
+        date=now.date()      # date
     )
 
     db.add(entry)
@@ -105,15 +110,15 @@ def clock_out(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    entry = db.query(TimeEntry).filter(
-        TimeEntry.user_id == current_user.id,
-        TimeEntry.clock_out == None
+    entry = db.query(models.TimeEntry).filter(
+        models.TimeEntry.user_id == current_user.id,
+        models.TimeEntry.clock_out == None
     ).first()
 
     if not entry:
         raise HTTPException(status_code=400, detail="Not clocked in")
 
-    entry.clock_out = datetime.utcnow()  # ✅ datetime
+    entry.clock_out = datetime.utcnow()  
 
     duration = entry.clock_out - entry.clock_in
     entry.total_hours = round(duration.total_seconds() / 3600, 2)
@@ -132,7 +137,7 @@ def my_entries(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    return db.query(TimeEntry).filter(
+    return db.query(models.TimeEntry).filter(
         TimeEntry.user_id == current_user.id
     ).all()
 
@@ -142,10 +147,10 @@ def clock_status(
     current_user=Depends(get_current_user)
 ):
     entry = (
-        db.query(TimeEntry)
+        db.query(models.TimeEntry)
         .filter(
-            TimeEntry.user_id == current_user.id,
-            TimeEntry.clock_out == None
+            models.TimeEntry.user_id == current_user.id,
+            models.TimeEntry.clock_out == None
         )
         .first()
     )
@@ -165,11 +170,11 @@ def today_summary(
     current_user=Depends(get_current_user)
 ):
     entries = (
-        db.query(TimeEntry)
+        db.query(models.TimeEntry)
         .filter(
-            TimeEntry.user_id == current_user.id,
-            TimeEntry.date == date.today(),
-            TimeEntry.total_hours != None
+            models.TimeEntry.user_id == current_user.id,
+            models.TimeEntry.date == date.today(),
+            models.TimeEntry.total_hours != None
         )
         .all()
     )
@@ -191,11 +196,11 @@ def weekly_summary(
     start = today - timedelta(days = today.weekday())
 
     entries = (
-        db.query(TimeEntry)
+        db.query(models.TimeEntry)
         .filter(
-            TimeEntry.user_id == current_user.id,
-            TimeEntry.date >= start,
-            TimeEntry.total_hours != None
+            models.TimeEntry.user_id == current_user.id,
+            models.TimeEntry.date >= start,
+            models.TimeEntry.total_hours != None
         )
         .all()
     )
@@ -212,7 +217,26 @@ def get_all_logs(
     db: Session = Depends(get_db),
     admin: models.User = Depends(check_admin)
 ):
-    logs = db.query(models.TimeEntry.all())
-    
-    return logs
+    # 1. We join TimeEntry and User on the 'id' field
+    # 2. We select exactly which fields we want to send to React
+    results = db.query(
+        models.TimeEntry.id,
+        models.TimeEntry.clock_in,
+        models.TimeEntry.clock_out,
+        models.TimeEntry.total_hours,
+        models.TimeEntry.date,
+        models.User.username  # <--- This is the magic join!
+    ).join(models.User, models.TimeEntry.user_id == models.User.id).all()
+
+    # 3. Convert SQLAlchemy rows into a list of dictionaries for JSON
+    return [
+        {
+            "id": r.id,
+            "username": r.username,
+            "date": r.date.isoformat() if r.date else None,
+            "clock_in": r.clock_in.strftime("%H:%M:%S") if r.clock_in else None,
+            "clock_out": r.clock_out.strftime("%H:%M:%S") if r.clock_out else "Active",
+            "total_hours": r.total_hours if r.total_hours is not None else 0
+        } for r in results
+    ]
 
