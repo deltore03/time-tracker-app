@@ -9,13 +9,15 @@ from app.auth import get_current_user
 from jose import jwt
 
 from app import models, schemas
-from app.auth import pwd_context, hash_password, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
+from app.auth import pwd_context, hash_password, SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES, check_admin
 from app.database import get_db
 
 router = APIRouter(
     prefix="/auth",
     tags=["auth"]
 )
+
+MASTER_ADMIN_KEY = "super-secret-123"
 
 # -------------------
 # Register Endpoint
@@ -30,11 +32,17 @@ def register(user: schemas.UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Username already exists")
 
     hashed_pw = hash_password(user.password)
+    user_role = "employee"
+    if user.admin_key == MASTER_ADMIN_KEY:
+        user_role = "admin"
 
     new_user = models.User(
         username=user.username,
-        password_hash=hashed_pw
+        password_hash=hashed_pw,
+        role = user_role
     )
+
+    
 
     db.add(new_user)
     db.commit()
@@ -199,17 +207,12 @@ def weekly_summary(
         "entries": entries
     }
 
-@router.get("/admin/all-;ogs")
+@router.get("/admin/all-logs")
 def get_all_logs(
-    db: Session = Depends(check_admin),
-    admin: models.User = Depends("admin")):
+    db: Session = Depends(get_db),
+    admin: models.User = Depends(check_admin)
+):
     logs = db.query(models.TimeEntry.all())
     
     return logs
 
-@router.get("/admin/edit-entry")
-def edit_entry(
-    db: Session = Depends(get_db),
-    admin: models.User = Depends(check_admin)
-):
-    

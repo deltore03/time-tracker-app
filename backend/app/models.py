@@ -11,6 +11,7 @@ class User(Base):
 	username = Column(String, unique=True, index=True, nullable=False)
 	password_hash = Column(String, nullable=False)
 	created_at = Column(DateTime, default=datetime.utcnow)
+	role  = Column(String, default="employee")
 
 	time_entries = relationship("TimeEntry", back_populates="user")
 

@@ -49,7 +49,7 @@ def get_current_user(token: str = Depends(oauth2_scheme)):
 
     return user
 
-def check_admin(current_user: models.user = Depends(get_current_user)):
+def check_admin(current_user: models.User = Depends(get_current_user)):
     #check if the user is an admin and reject if they're not.
 	if not current_user.role == "admin":
 		raise HTTPException(

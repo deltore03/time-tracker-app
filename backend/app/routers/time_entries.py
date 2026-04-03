@@ -3,8 +3,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from app.database import SessionLocal
-from app import models
-from app.auth import get_current_user
+from app import models, schemas
+from app.auth import get_current_user, check_admin
 
 router = APIRouter(prefix="/time", tags=["time"])
 
@@ -79,7 +79,7 @@ def clock_out(
 def admin_time_entry(
     entry_id: int,
     update_data: schemas.TimeEntryUpdate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
     admin: models.User = Depends(check_admin)):
 
     entry = db.query(models.TimeEntry).filter(models.TimeEntry.id == entry_id).first()

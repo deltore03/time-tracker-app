@@ -6,6 +6,7 @@ from typing import Optional
 class UserCreate(BaseModel):
     username: str
     password: str
+    admin_key: Optional[str] = None
 
 class UserOut(BaseModel):
     id: int
