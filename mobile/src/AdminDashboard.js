@@ -28,7 +28,7 @@ const AdminDashboard = ({ setToken }) => {
     if (!window.confirm("Are you sure?")) return;
     try {
       const token = localStorage.getItem('token');
-      await axios.delete(`http://localhost:8000/auth/admin/logs/${logId}`, {
+      await axios.delete(`http://localhost:8000/time/delete-entry/${logId}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setLogs(logs.filter(log => log.id !== logId));
@@ -75,8 +75,8 @@ const AdminDashboard = ({ setToken }) => {
                   <tr key={log.id} style={styles.tr}>
                     <td style={styles.td}>{log.username}</td>
                     <td style={styles.td}>{log.date}</td>
-                    <td style={styles.td}>{log.clock_in}</td>
-                    <td style={styles.td}>{log.clock_out}</td>
+                    <td style={styles.td}>{log.clock_in ? new Date(log.clock_in).toLocaleTimeString() : '-'}</td>
+                    <td style={styles.td}>{log.clock_out === "Active" ? "Active" : new Date(log.clock_out).toLocaleTimeString()}</td>
                     <td style={styles.td}>{log.total_hours}h</td>
                     <td style={styles.td}>
                       <button onClick={() => handleDelete(log.id)} style={styles.deleteBtn}>Delete</button>

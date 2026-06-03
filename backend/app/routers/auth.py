@@ -1,4 +1,5 @@
 # app/routers/auth.py
+import os
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
@@ -17,7 +18,7 @@ router = APIRouter(
     tags=["auth"]
 )
 
-MASTER_ADMIN_KEY = "super-secret-123"
+MASTER_ADMIN_KEY = os.getenv("MASTER_ADMIN_KEY", "super-secret-123")
 
 # -------------------
 # Register Endpoint
@@ -110,25 +111,36 @@ def clock_out(
     db: Session = Depends(get_db),
     current_user = Depends(get_current_user)
 ):
-    entry = db.query(models.TimeEntry).filter(
+    active_entry = db.query(models.TimeEntry).filter(
         models.TimeEntry.user_id == current_user.id,
         models.TimeEntry.clock_out == None
     ).first()
 
-    if not entry:
-        raise HTTPException(status_code=400, detail="Not clocked in")
+    if not active_entry:
+        last_entry = db.query(models.TimeEntry).filter(
+            models.TimeEntry.user_id == current_user.id
+        ).order_by(models.TimeEntry.clock_in.desc()).first()
 
-    entry.clock_out = datetime.utcnow()  
+        if last_entry and last_entry.clock_out is not None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="You have already clocked out for this session."
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="No active session found. Please clock in first."
+        )
 
-    duration = entry.clock_out - entry.clock_in
-    entry.total_hours = round(duration.total_seconds() / 3600, 2)
+    active_entry.clock_out = datetime.utcnow()  
+    duration = active_entry.clock_out - active_entry.clock_in
+    active_entry.total_hours = round(duration.total_seconds() / 3600, 2)
 
     db.commit()
-    db.refresh(entry)
+    db.refresh(active_entry)
 
     return {
         "message": "Clocked out",
-        "hours": entry.total_hours
+        "hours": active_entry.total_hours
     }
 
 
@@ -138,7 +150,7 @@ def my_entries(
     current_user = Depends(get_current_user)
 ):
     return db.query(models.TimeEntry).filter(
-        TimeEntry.user_id == current_user.id
+        models.TimeEntry.user_id == current_user.id
     ).all()
 
 @router.get("/status")
@@ -214,11 +226,11 @@ def weekly_summary(
 
 @router.get("/admin/all-logs")
 def get_all_logs(
+    skip: int = 0,
+    limit: int = 100,
     db: Session = Depends(get_db),
     admin: models.User = Depends(check_admin)
 ):
-    # 1. We join TimeEntry and User on the 'id' field
-    # 2. We select exactly which fields we want to send to React
     results = db.query(
         models.TimeEntry.id,
         models.TimeEntry.clock_in,
@@ -226,7 +238,9 @@ def get_all_logs(
         models.TimeEntry.total_hours,
         models.TimeEntry.date,
         models.User.username  # <--- This is the magic join!
-    ).join(models.User, models.TimeEntry.user_id == models.User.id).all()
+    ).join(
+        models.User, models.TimeEntry.user_id == models.User.id
+    ).offset(skip).limit(limit).all()
 
     # 3. Convert SQLAlchemy rows into a list of dictionaries for JSON
     return [
@@ -234,9 +248,8 @@ def get_all_logs(
             "id": r.id,
             "username": r.username,
             "date": r.date.isoformat() if r.date else None,
-            "clock_in": r.clock_in.strftime("%H:%M:%S") if r.clock_in else None,
-            "clock_out": r.clock_out.strftime("%H:%M:%S") if r.clock_out else "Active",
+            "clock_in": r.clock_in.isoformat() if r.clock_in else None,
+            "clock_out": r.clock_out.isoformat() if r.clock_out else "Active",
             "total_hours": r.total_hours if r.total_hours is not None else 0
         } for r in results
     ]
-

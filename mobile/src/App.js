@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import Login from './Login';
 import AdminDashboard from './AdminDashboard';
 import { jwtDecode } from "jwt-decode";
@@ -8,18 +8,16 @@ import EmployeeDashboard from './EmployeeDashboard';
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
 
-  const getUserRole = () => {
+  const role = useMemo(() => {
     if (!token) return null;
     try {
       const decoded = jwtDecode(token);
-      return decoded.role; // This matches your FastAPI: {"role": user.role}
+      return decoded.role;
     } catch (error) {
       console.error("Invalid token", error);
       return null;
     }
-  };
-
-  const role = getUserRole();
+  }, [token]);
 
   return (
     <div className="App">

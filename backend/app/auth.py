@@ -1,4 +1,5 @@
 # app/auth.py
+import os
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError, jwt
@@ -18,7 +19,7 @@ def hash_password(password: str):
     return pwd_context.hash(password)
 
 # JWT settings
-SECRET_KEY = "your-very-secret-key"  # change this to something secure!
+SECRET_KEY = os.getenv("SECRET_KEY", "your-very-secret-key")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
@@ -57,4 +58,3 @@ def check_admin(current_user: models.User = Depends(get_current_user)):
                detail="Forbidden: Admin access only"
 		)
 	return current_user
-
